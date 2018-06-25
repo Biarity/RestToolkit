@@ -4,12 +4,13 @@ using Microsoft.EntityFrameworkCore;
 using RestToolkit.Infrastructure;
 using System;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace RestToolkit.Services
 {
     public abstract class ToolkitRepository<TEntity, TDbContext, TUser>
         where TEntity : ToolkitEntity<TUser>, new()
-        where TDbContext : DbContext, new()
+        where TDbContext : DbContext
         where TUser : IdentityUser
     {
         protected HttpContext _httpContext { get; set; }
@@ -24,26 +25,55 @@ namespace RestToolkit.Services
             _dbContext = dbContext;
         }
 
-        public virtual bool OnCreate(TEntity entity)
+        #region PUBLIC ASYNC CRUD METHODS
+        #pragma warning disable CS1998 // Async method lacks 'await' operators and will run synchronously
+
+        public virtual async Task<bool> OnCreateAsync(TEntity entity)
         {
-            InitCreate(entity);
+            return OnCreate(entity);
+        }
+
+        public virtual async Task<object> OnReadAsync(IQueryable<TEntity> entities, int? id)
+        {
+            return OnRead(entities, id);
+        }
+
+        public virtual async Task<bool> OnUpdateAsync(TEntity entity)
+        {
+            return OnUpdate(entity);
+        }
+
+        public virtual async Task<bool> OnDeleteAsync(int entityId)
+        {
+            return OnDelete(entityId);
+        }
+
+        #pragma warning restore CS1998 // Async method lacks 'await' operators and will run synchronously
+        #endregion
+
+        #region PRIVATE NON-ASYNC CRUD METHODS
+
+        private bool OnCreate(TEntity entity)
+        {
             return IsAllAllowedByDefault;
         }
 
-        public virtual object OnRead(IQueryable<TEntity> entities, int? id)
+        private object OnRead(IQueryable<TEntity> entities, int? id)
         {
             return IsAllAllowedByDefault ? entities : null;
         }
 
-        public virtual bool OnUpdate(TEntity entity)
+        private bool OnUpdate(TEntity entity)
         {
             return IsAllAllowedByDefault;
         }
 
-        public virtual bool OnDelete(int entityId)
+        private bool OnDelete(int entityId)
         {
             return IsAllAllowedByDefault;
         }
+
+        #endregion
 
         #region HELPERS
 
@@ -53,21 +83,6 @@ namespace RestToolkit.Services
             {
                 return _httpContext.User.GetUserId();
             }
-        }
-
-        public virtual TEntity InitCreate(TEntity entity, dynamic info = null)
-        {
-            return InitCreate<TEntity, TUser>(entity, info);
-        }
-
-        public _TEntity InitCreate<_TEntity, _TUser>(_TEntity entity, dynamic info = null)
-            where _TEntity : ToolkitEntity<_TUser>, new()
-            where _TUser : IdentityUser
-        {
-            entity.Created = DateTimeOffset.UtcNow;
-            entity.UserId = CurrentUserId;
-            entity.InitCreate(info);
-            return entity;
         }
 
         protected string GetQueryString(string key)

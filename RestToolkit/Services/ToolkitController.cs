@@ -1,24 +1,27 @@
 ﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using RestToolkit.Infrastructure;
 using Sieve.Models;
 using Sieve.Services;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
 namespace RestToolkit.Services
 {
-    //[ApiController]
+    [ApiController]
     [ProducesResponseType(200), ProducesResponseType(400), ProducesResponseType(500)]
-    public abstract class ToolkitController<TEntity, TDbContext, TUser> : Controller
+    public abstract class ToolkitController<TEntity, TRepository, TDbContext, TUser> : ControllerBase
         where TEntity : ToolkitEntity<TUser>, new()
-        where TDbContext : DbContext, new()
+        where TRepository : ToolkitRepository<TEntity, TDbContext, TUser>
+        where TDbContext : DbContext
         where TUser : IdentityUser
     {
         protected TDbContext _dbContext;
         protected SieveProcessor _sieveProcessor;
-        protected ToolkitRepository<TEntity, TDbContext, TUser> _entityRepo;
+        protected TRepository _entityRepo;
 
         protected bool _saveChangesOnRead;
         protected bool _allowSieveOnRead;
@@ -26,9 +29,9 @@ namespace RestToolkit.Services
         public ToolkitController(
             TDbContext dbContext,
             SieveProcessor sieveProcessor,
-            ToolkitRepository<TEntity, TDbContext, TUser> entityRepo,
+            TRepository entityRepo,
             bool saveChangesOnRead = false,
-            bool allowSieveOnRead = true)
+            bool allowSieveOnRead = false)
         {
             _dbContext = dbContext;
             _sieveProcessor = sieveProcessor;
@@ -43,9 +46,11 @@ namespace RestToolkit.Services
         [HttpPost]
         public virtual async Task<IActionResult> Create([FromBody]TEntity entity)
         {
-            _entityRepo.InitCreate(entity);
+            entity.Created = DateTimeOffset.UtcNow;
+            entity.UserId = User.GetUserId();
+            entity.InitCreate();
             entity.Normalise();
-            if (_entityRepo.OnCreate(entity))
+            if (await _entityRepo.OnCreateAsync(entity))
             {
                 _dbContext.Add(entity);
                 await _dbContext.SaveChangesAsync();
@@ -84,7 +89,7 @@ namespace RestToolkit.Services
             else if (_allowSieveOnRead && sieveModel != null)
                 source = _sieveProcessor.Apply(sieveModel, source);
 
-            var result = _entityRepo.OnRead(source, id);
+            var result = await _entityRepo.OnReadAsync(source, id);
 
             if (result is null)
                 return BadRequest();
@@ -108,7 +113,7 @@ namespace RestToolkit.Services
             entity.Normalise();
             entity.Id = id;
 
-            if (!_entityRepo.OnUpdate(entity))
+            if (! await _entityRepo.OnUpdateAsync(entity))
                 return BadRequest();
 
             _dbContext.Update(entity);
@@ -126,7 +131,7 @@ namespace RestToolkit.Services
         {
             var entity = new TEntity() { Id = id };
 
-            if (!_entityRepo.OnDelete(id))
+            if (! await _entityRepo.OnDeleteAsync(id))
                 return BadRequest();
 
             _dbContext.Remove(entity);

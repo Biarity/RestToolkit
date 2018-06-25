@@ -33,7 +33,7 @@ namespace RestToolkit.Services
 
 
         public virtual void Normalise() { }
-        public virtual void InitCreate(dynamic info) { }
+        public virtual void InitCreate() { }
     }
 
 }
