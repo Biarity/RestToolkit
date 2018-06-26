@@ -6,8 +6,9 @@ using System;
 
 namespace RestToolkit.Services
 {
-    public abstract class ToolkitEntity<TUser>
-        where TUser : IdentityUser
+    public abstract class ToolkitEntity<TUser, TKey>
+        where TUser : IdentityUser<TKey>
+        where TKey : IEquatable<TKey>
     {
         [BindNever]
         public virtual int Id { get; set; }
@@ -21,7 +22,7 @@ namespace RestToolkit.Services
         public virtual DateTimeOffset LastUpdated { get; set; } = DateTimeOffset.UtcNow;
 
         [BindNever]
-        public virtual int UserId { get; set; }
+        public virtual TKey UserId { get; set; }
 
         [BindNever, JsonIgnore]
         public virtual TUser User { get; set; }

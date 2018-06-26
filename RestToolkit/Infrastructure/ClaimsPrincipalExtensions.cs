@@ -6,10 +6,10 @@ namespace RestToolkit.Infrastructure
 {
     public static class ClaimsPrincipalExtensions
     {
-        // int is TUserId
-        public static int GetUserId(this ClaimsPrincipal user)
+        // string is TKey
+        public static string GetUserId(this ClaimsPrincipal user)
         {
-            return Int32.Parse(user.Claims?.FirstOrDefault(c => c.Type == "sub")?.Value);
+            return user.Claims?.FirstOrDefault(c => c.Type == "sub")?.Value;
         }
 
         public static string GetUserName(this ClaimsPrincipal user)

@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 
 namespace RestToolkit.Infrastructure
 {
+    // DEPRICATED
     public class DbUpdateExceptionHandler
     {
         private readonly RequestDelegate _next;

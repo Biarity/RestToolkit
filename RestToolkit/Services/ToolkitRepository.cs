@@ -8,10 +8,11 @@ using System.Threading.Tasks;
 
 namespace RestToolkit.Services
 {
-    public abstract class ToolkitRepository<TEntity, TDbContext, TUser>
-        where TEntity : ToolkitEntity<TUser>, new()
+    public abstract class ToolkitRepository<TEntity, TDbContext, TUser, TKey>
+        where TEntity : ToolkitEntity<TUser, TKey>, new()
         where TDbContext : DbContext
-        where TUser : IdentityUser
+        where TUser : IdentityUser<TKey>
+        where TKey : IEquatable<TKey>
     {
         protected HttpContext _httpContext { get; set; }
         protected TDbContext _dbContext { get; set; }
@@ -77,7 +78,7 @@ namespace RestToolkit.Services
 
         #region HELPERS
 
-        protected int CurrentUserId
+        protected string CurrentUserId
         {
             get
             {
@@ -90,8 +91,8 @@ namespace RestToolkit.Services
             var query = _httpContext.Request.Query[key].ToString();
             return query.Length < 1 ? null : query;
         }
-
-        protected bool DoesCurrentUserOwnAnyOf(int Id)
+        /*
+        protected bool DoesCurrentUserOwnAnyOf(TKey Id)
         {
             return _dbContext.Set<TEntity>().AsNoTracking()
                     .Any(e => e.Id == Id && e.UserId == CurrentUserId);
@@ -101,7 +102,7 @@ namespace RestToolkit.Services
         {
             entities = entities.Where(e => e.UserId == CurrentUserId);
         }
-
+        */
         #endregion HELPERS
     }
 

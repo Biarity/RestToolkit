@@ -12,12 +12,13 @@ using System.Threading.Tasks;
 namespace RestToolkit.Services
 {
     [ApiController]
-    [ProducesResponseType(200), ProducesResponseType(400), ProducesResponseType(500)]
-    public abstract class ToolkitController<TEntity, TRepository, TDbContext, TUser> : ControllerBase
-        where TEntity : ToolkitEntity<TUser>, new()
-        where TRepository : ToolkitRepository<TEntity, TDbContext, TUser>
+    [ProducesResponseType(403), ProducesResponseType(500)]
+    public abstract class ToolkitController<TEntity, TRepository, TDbContext, TUser, TKey> : ControllerBase
+        where TEntity : ToolkitEntity<TUser, TKey>, new()
+        where TRepository : ToolkitRepository<TEntity, TDbContext, TUser, TKey>
         where TDbContext : DbContext
-        where TUser : IdentityUser
+        where TUser : IdentityUser<TKey>
+        where TKey : IEquatable<TKey>
     {
         protected TDbContext _dbContext;
         protected SieveProcessor _sieveProcessor;
@@ -44,21 +45,35 @@ namespace RestToolkit.Services
         #region POST
 
         [HttpPost]
+        [ProducesResponseType(200), ProducesResponseType(410)]
         public virtual async Task<IActionResult> Create([FromBody]TEntity entity)
         {
             entity.Created = DateTimeOffset.UtcNow;
-            entity.UserId = User.GetUserId();
+            entity.UserId = (TKey)Convert.ChangeType(User.GetUserId(), typeof(TKey));
             entity.InitCreate();
             entity.Normalise();
+
             if (await _entityRepo.OnCreateAsync(entity))
             {
-                _dbContext.Add(entity);
-                await _dbContext.SaveChangesAsync();
+                try
+                {
+                    _dbContext.Add(entity);
+                    await _dbContext.SaveChangesAsync();
+                }
+                catch (DbUpdateConcurrencyException)
+                {
+                    return StatusCode(410);
+                }
+                catch (DbUpdateException)
+                {
+                    throw; // server error
+                }
+
                 return Ok(entity);
             }
             else
             {
-                return BadRequest();
+                return Forbid();
             }
         }
 
@@ -67,12 +82,14 @@ namespace RestToolkit.Services
         #region GET
 
         [HttpGet("{id}")]
+        [ProducesResponseType(200)]
         public virtual async Task<IActionResult> Read(int id)
         {
             return await Read(id, null);
         }
 
         [HttpGet]
+        [ProducesResponseType(200)]
         public virtual async Task<IActionResult> Read([FromQuery]SieveModel sieveModel)
         {
             return await Read(null, sieveModel);
@@ -85,20 +102,37 @@ namespace RestToolkit.Services
             //source = source.Where(e => !e.IsDeleted);
 
             if (id != null)
+            {
                 source = source.Where(e => e.Id == id);
+            }
             else if (_allowSieveOnRead && sieveModel != null)
+            {
                 source = _sieveProcessor.Apply(sieveModel, source);
+            }
 
             var result = await _entityRepo.OnReadAsync(source, id);
 
             if (result is null)
-                return BadRequest();
+            {
+                return Forbid();
+            }
             else if (result is IQueryable<object> entities)
+            {
                 result = id == null ? new { data = await entities.ToListAsync() }
                                     : await entities.FirstOrDefaultAsync();
+            }
 
             if (_saveChangesOnRead)
-                await _dbContext.SaveChangesAsync();
+            {
+                try
+                {
+                    await _dbContext.SaveChangesAsync();
+                }
+                catch (DbUpdateException)
+                {
+                    throw; // server error
+                }
+            }
 
             return Ok(result);
         }
@@ -108,18 +142,32 @@ namespace RestToolkit.Services
         #region PUT
 
         [HttpPut("{id}")]
+        [ProducesResponseType(204), ProducesResponseType(410)]
         public virtual async Task<IActionResult> Update(int id, [FromBody]TEntity entity)
         {
             entity.Normalise();
             entity.Id = id;
 
             if (! await _entityRepo.OnUpdateAsync(entity))
-                return BadRequest();
+            {
+                return Forbid();
+            }
 
-            _dbContext.Update(entity);
+            try
+            {
+                _dbContext.Update(entity);
+                await _dbContext.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return StatusCode(410);
+            }
+            catch (DbUpdateException)
+            {
+                throw; // server error
+            }
 
-            await _dbContext.SaveChangesAsync();
-            return Ok();
+            return NoContent();
         }
 
         #endregion
@@ -127,16 +175,31 @@ namespace RestToolkit.Services
         #region DELETE
 
         [HttpDelete("{id}")]
+        [ProducesResponseType(204), ProducesResponseType(410)]
         public virtual async Task<IActionResult> Delete(int id)
         {
             var entity = new TEntity() { Id = id };
 
             if (! await _entityRepo.OnDeleteAsync(id))
-                return BadRequest();
+            {
+                return Forbid();
+            }
 
-            _dbContext.Remove(entity);
-            await _dbContext.SaveChangesAsync();
-            return Ok();
+            try
+            {
+                _dbContext.Remove(entity);
+                await _dbContext.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return StatusCode(410);
+            }
+            catch (DbUpdateException)
+            {
+                throw; // server error
+            }
+
+            return NoContent();
         }
 
         #endregion
