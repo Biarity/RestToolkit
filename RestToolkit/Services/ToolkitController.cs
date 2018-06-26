@@ -6,6 +6,7 @@ using Sieve.Models;
 using Sieve.Services;
 using System;
 using System.Collections.Generic;
+using System.Data.Common;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -45,7 +46,7 @@ namespace RestToolkit.Services
         #region POST
 
         [HttpPost]
-        [ProducesResponseType(200), ProducesResponseType(410)]
+        [ProducesResponseType(200), ProducesResponseType(400), ProducesResponseType(410)]
         public virtual async Task<IActionResult> Create([FromBody]TEntity entity)
         {
             entity.Created = DateTimeOffset.UtcNow;
@@ -59,6 +60,10 @@ namespace RestToolkit.Services
                 {
                     _dbContext.Add(entity);
                     await _dbContext.SaveChangesAsync();
+                }
+                catch (Exception ex) when (ex is ArgumentNullException || ex is DbException)
+                {
+                    return BadRequest();
                 }
                 catch (DbUpdateConcurrencyException)
                 {
@@ -142,7 +147,7 @@ namespace RestToolkit.Services
         #region PUT
 
         [HttpPut("{id}")]
-        [ProducesResponseType(204), ProducesResponseType(410)]
+        [ProducesResponseType(204), ProducesResponseType(400), ProducesResponseType(410)]
         public virtual async Task<IActionResult> Update(int id, [FromBody]TEntity entity)
         {
             entity.Normalise();
@@ -157,6 +162,10 @@ namespace RestToolkit.Services
             {
                 _dbContext.Update(entity);
                 await _dbContext.SaveChangesAsync();
+            }
+            catch (Exception ex) when (ex is ArgumentNullException || ex is DbException)
+            {
+                return BadRequest();
             }
             catch (DbUpdateConcurrencyException)
             {
@@ -175,7 +184,7 @@ namespace RestToolkit.Services
         #region DELETE
 
         [HttpDelete("{id}")]
-        [ProducesResponseType(204), ProducesResponseType(410)]
+        [ProducesResponseType(204), ProducesResponseType(400), ProducesResponseType(410)]
         public virtual async Task<IActionResult> Delete(int id)
         {
             var entity = new TEntity() { Id = id };
@@ -189,6 +198,10 @@ namespace RestToolkit.Services
             {
                 _dbContext.Remove(entity);
                 await _dbContext.SaveChangesAsync();
+            }
+            catch (Exception ex) when (ex is ArgumentNullException || ex is DbException)
+            {
+                return BadRequest();
             }
             catch (DbUpdateConcurrencyException)
             {

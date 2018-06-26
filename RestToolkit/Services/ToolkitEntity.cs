@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Newtonsoft.Json;
 using Sieve.Attributes;
 using System;
+using System.Runtime.Serialization;
 
 namespace RestToolkit.Services
 {
@@ -10,18 +11,18 @@ namespace RestToolkit.Services
         where TUser : IdentityUser<TKey>
         where TKey : IEquatable<TKey>
     {
-        [BindNever]
+        [DataMember, BindNever]
         public virtual int Id { get; set; }
 
         [Sieve(CanSort = true)]
-        [BindNever]
+        [DataMember, BindNever]
         public virtual DateTimeOffset Created { get; set; }
 
         [Sieve(CanSort = true)]
-        [BindNever]
+        [DataMember, BindNever]
         public virtual DateTimeOffset LastUpdated { get; set; } = DateTimeOffset.UtcNow;
 
-        [BindNever]
+        [DataMember, BindNever]
         public virtual TKey UserId { get; set; }
 
         [BindNever, JsonIgnore]
@@ -31,7 +32,6 @@ namespace RestToolkit.Services
         //       ToolkitController logic to ignore entity
         //[BindNever, JsonIgnore]
         //public bool IsDeleted { get; set; }
-
 
         public virtual void Normalise() { }
         public virtual void InitCreate() { }
