@@ -77,18 +77,11 @@ namespace RestToolkit.Services
                 {
                     throw; // server error
                 }
-
-                _logger.LogInformation($"SUCCESS: \n" +
-                    $"CREATE {typeof(TEntity)} \n" +
-                    $"WITH ID {entity.Id} AND \n" +
-                    $"WITH USER {entity.UserId}.\n");
+                
                 return Ok(entity);
             }
             else
             {
-                _logger.LogInformation($"DENIED: \n" +
-                    $"CREATE {typeof(TEntity)} \n" +
-                    $"WITH USER {entity.UserId}.\n");
                 return Forbid();
             }
         }
