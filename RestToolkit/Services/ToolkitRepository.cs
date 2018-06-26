@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using RestToolkit.Infrastructure;
 using System;
 using System.Linq;
@@ -16,14 +17,17 @@ namespace RestToolkit.Services
     {
         protected HttpContext _httpContext { get; set; }
         protected TDbContext _dbContext { get; set; }
+        protected readonly ILogger _logger;
 
         public bool IsAllAllowedByDefault { get; set; } = false;
 
         public ToolkitRepository(IHttpContextAccessor httpContextAccessor,
-            TDbContext dbContext)
+            TDbContext dbContext,
+            ILogger<ToolkitRepository<TEntity, TDbContext, TUser, TKey>> logger)
         {
             _httpContext = httpContextAccessor.HttpContext;
             _dbContext = dbContext;
+            _logger = logger;
         }
 
         #region PUBLIC ASYNC CRUD METHODS

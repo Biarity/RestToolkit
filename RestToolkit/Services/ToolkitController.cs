@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using RestToolkit.Infrastructure;
 using Sieve.Models;
 using Sieve.Services;
@@ -24,6 +25,7 @@ namespace RestToolkit.Services
         protected TDbContext _dbContext;
         protected SieveProcessor _sieveProcessor;
         protected TRepository _entityRepo;
+        private readonly ILogger _logger;
 
         protected bool _saveChangesOnRead;
         protected bool _allowSieveOnRead;
@@ -32,12 +34,14 @@ namespace RestToolkit.Services
             TDbContext dbContext,
             SieveProcessor sieveProcessor,
             TRepository entityRepo,
+            ILogger<ToolkitController<TEntity, TRepository, TDbContext, TUser, TKey>> logger,
             bool saveChangesOnRead = false,
             bool allowSieveOnRead = false)
         {
             _dbContext = dbContext;
             _sieveProcessor = sieveProcessor;
             _entityRepo = entityRepo;
+            _logger = logger;
 
             _saveChangesOnRead = saveChangesOnRead;
             _allowSieveOnRead = allowSieveOnRead;
@@ -74,10 +78,17 @@ namespace RestToolkit.Services
                     throw; // server error
                 }
 
+                _logger.LogInformation($"SUCCESS: \n" +
+                    $"CREATE {typeof(TEntity)} \n" +
+                    $"WITH ID {entity.Id} AND \n" +
+                    $"WITH USER {entity.UserId}.\n");
                 return Ok(entity);
             }
             else
             {
+                _logger.LogInformation($"DENIED: \n" +
+                    $"CREATE {typeof(TEntity)} \n" +
+                    $"WITH USER {entity.UserId}.\n");
                 return Forbid();
             }
         }
