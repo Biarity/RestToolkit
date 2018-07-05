@@ -3,17 +3,29 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using RestToolkit.Infrastructure;
+using RestToolkit.Models;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
 namespace RestToolkit.Services
 {
-    public abstract class ToolkitRepository<TEntity, TDbContext, TUser, TKey>
-        where TEntity : ToolkitEntity<TUser, TKey>, new()
+    public abstract class ToolkitRepository<TEntity, TDbContext, TUser> : ToolkitRepository<TEntity, TDbContext, TUser, ExtraQueries>
+        where TEntity : ToolkitEntity<TUser>, new()
         where TDbContext : DbContext
-        where TUser : IdentityUser<TKey>
-        where TKey : IEquatable<TKey>
+        where TUser : IdentityUser<int>
+    {
+        public ToolkitRepository(IHttpContextAccessor httpContextAccessor, TDbContext dbContext, ILogger<ToolkitRepository<TEntity, TDbContext, TUser, ExtraQueries>> logger) : base(httpContextAccessor, dbContext, logger)
+        {
+        }
+    }
+
+    public abstract class ToolkitRepository<TEntity, TDbContext, TUser, TExtraQueries>
+        where TEntity : ToolkitEntity<TUser>, new()
+        where TDbContext : DbContext
+        where TUser : IdentityUser<int>
+        where TExtraQueries : class
     {
         protected HttpContext _httpContext { get; set; }
         protected TDbContext _dbContext { get; set; }
@@ -23,7 +35,7 @@ namespace RestToolkit.Services
 
         public ToolkitRepository(IHttpContextAccessor httpContextAccessor,
             TDbContext dbContext,
-            ILogger<ToolkitRepository<TEntity, TDbContext, TUser, TKey>> logger)
+            ILogger<ToolkitRepository<TEntity, TDbContext, TUser, TExtraQueries>> logger)
         {
             _httpContext = httpContextAccessor.HttpContext;
             _dbContext = dbContext;
@@ -33,22 +45,22 @@ namespace RestToolkit.Services
         #region PUBLIC ASYNC CRUD METHODS
         #pragma warning disable CS1998 // Async method lacks 'await' operators and will run synchronously
 
-        public virtual async Task<bool> OnCreateAsync(TEntity entity)
+        public virtual async Task<RepositoryResponse> OnCreateAsync(TEntity entity)
         {
             return OnCreate(entity);
         }
 
-        public virtual async Task<object> OnReadAsync(IQueryable<TEntity> entities, int? id)
+        public virtual async Task<(RepositoryResponse, IQueryable<object>)> OnReadAsync(IQueryable<TEntity> entities, int? id, TExtraQueries extraQueries = null)
         {
-            return OnRead(entities, id);
+            return OnRead(entities, id, extraQueries);
         }
 
-        public virtual async Task<bool> OnUpdateAsync(TEntity entity)
+        public virtual async Task<RepositoryResponse> OnUpdateAsync(int entityId, TEntity entity)
         {
-            return OnUpdate(entity);
+            return OnUpdate(entityId, entity);
         }
 
-        public virtual async Task<bool> OnDeleteAsync(int entityId)
+        public virtual async Task<RepositoryResponse> OnDeleteAsync(int entityId)
         {
             return OnDelete(entityId);
         }
@@ -58,31 +70,51 @@ namespace RestToolkit.Services
 
         #region PRIVATE NON-ASYNC CRUD METHODS
 
-        private bool OnCreate(TEntity entity)
+        private RepositoryResponse OnCreate(TEntity entity)
         {
-            return IsAllAllowedByDefault;
+            return new RepositoryResponse
+            {
+                Success = IsAllAllowedByDefault
+            };
         }
 
-        private object OnRead(IQueryable<TEntity> entities, int? id)
+        private (RepositoryResponse, IQueryable<object>) OnRead(IQueryable<TEntity> entities, int? id, TExtraQueries extraQueries = null)
         {
-            return IsAllAllowedByDefault ? entities : null;
+            return (new RepositoryResponse
+            {
+                Success = IsAllAllowedByDefault
+            }, entities);
         }
 
-        private bool OnUpdate(TEntity entity)
+        private RepositoryResponse OnUpdate(int entityId, TEntity entity)
         {
-            return IsAllAllowedByDefault;
+            return new RepositoryResponse
+            {
+                Success = IsAllAllowedByDefault
+            };
         }
 
-        private bool OnDelete(int entityId)
+        private RepositoryResponse OnDelete(int entityId)
         {
-            return IsAllAllowedByDefault;
+            return new RepositoryResponse
+            {
+                Success = IsAllAllowedByDefault
+            };
         }
 
         #endregion
 
         #region HELPERS
 
-        protected string CurrentUserId
+        protected bool IsUserAuthenticated
+        {
+            get
+            {
+                return _httpContext.User.Identity.IsAuthenticated;
+            }
+        }
+
+        protected int CurrentUserId
         {
             get
             {
@@ -92,11 +124,11 @@ namespace RestToolkit.Services
 
         protected string GetQueryString(string key)
         {
-            var query = _httpContext.Request.Query[key].ToString();
+            var query = _httpContext.Request.Path.ToString();
             return query.Length < 1 ? null : query;
         }
-        /*
-        protected bool DoesCurrentUserOwnAnyOf(TKey Id)
+       
+        protected bool DoesCurrentUserOwnAnyOf(int Id)
         {
             return _dbContext.Set<TEntity>().AsNoTracking()
                     .Any(e => e.Id == Id && e.UserId == CurrentUserId);
@@ -106,7 +138,7 @@ namespace RestToolkit.Services
         {
             entities = entities.Where(e => e.UserId == CurrentUserId);
         }
-        */
+        
         #endregion HELPERS
     }
 

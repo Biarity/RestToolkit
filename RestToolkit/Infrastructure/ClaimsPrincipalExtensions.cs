@@ -6,15 +6,20 @@ namespace RestToolkit.Infrastructure
 {
     public static class ClaimsPrincipalExtensions
     {
-        // string is TKey
-        public static string GetUserId(this ClaimsPrincipal user)
+        // Will throw if unauthorized
+        public static int GetUserId(this ClaimsPrincipal user)
         {
-            return user.Claims?.FirstOrDefault(c => c.Type == "sub")?.Value;
+            return Int32.Parse(user.Claims?.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value);
         }
 
         public static string GetUserName(this ClaimsPrincipal user)
         {
-            return user.Claims?.FirstOrDefault(c => c.Type == "name")?.Value;
+            return user.Claims?.FirstOrDefault(c => c.Type == ClaimTypes.Name)?.Value;
+        }
+
+        public static string GetSecurityStamp(this ClaimsPrincipal user)
+        {
+            return user.Claims?.FirstOrDefault(c => c.Type == "AspNet.Identity.SecurityStamp")?.Value;
         }
     }
 }

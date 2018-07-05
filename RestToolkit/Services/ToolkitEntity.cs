@@ -7,25 +7,21 @@ using System.Runtime.Serialization;
 
 namespace RestToolkit.Services
 {
-    public abstract class ToolkitEntity<TUser, TKey>
-        where TUser : IdentityUser<TKey>
-        where TKey : IEquatable<TKey>
+    [DataContract]
+    public abstract class ToolkitEntity<TUser>
+        where TUser : IdentityUser<int>
     {
-        [DataMember, BindNever]
+        [DataMember]
         public virtual int Id { get; set; }
-
-        [Sieve(CanSort = true)]
-        [DataMember, BindNever]
+        
+        [DataMember, Sieve(CanSort = true)]
         public virtual DateTimeOffset Created { get; set; }
 
-        [Sieve(CanSort = true)]
-        [DataMember, BindNever]
-        public virtual DateTimeOffset LastUpdated { get; set; } = DateTimeOffset.UtcNow;
+        [DataMember, Sieve(CanSort = true)]
+        public virtual DateTimeOffset LastUpdated { get; set; }
 
-        [DataMember, BindNever]
-        public virtual TKey UserId { get; set; }
-
-        [BindNever, JsonIgnore]
+        [DataMember, Sieve(CanFilter = true)]
+        public virtual int UserId { get; set; }
         public virtual TUser User { get; set; }
 
         // TODO: IsDeleted flag, would have implications on
@@ -34,7 +30,20 @@ namespace RestToolkit.Services
         //public bool IsDeleted { get; set; }
 
         public virtual void Normalise() { }
-        public virtual void InitCreate() { }
+
+        public virtual void Create(int userId = 0)
+        {
+            Id = 0;
+            Created = DateTimeOffset.UtcNow;
+            LastUpdated = DateTimeOffset.UtcNow;
+            UserId = userId;
+        }
+        
+        public virtual void Update(int userId = 0)
+        {
+            LastUpdated = DateTimeOffset.UtcNow;
+            UserId = userId;
+        }
     }
 
 }

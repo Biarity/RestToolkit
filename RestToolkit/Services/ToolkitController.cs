@@ -1,8 +1,12 @@
-﻿using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using RestToolkit.Infrastructure;
+using RestToolkit.Models;
+using Sieve.Exceptions;
 using Sieve.Models;
 using Sieve.Services;
 using System;
@@ -13,17 +17,33 @@ using System.Threading.Tasks;
 
 namespace RestToolkit.Services
 {
-    [ApiController]
-    [ProducesResponseType(403), ProducesResponseType(500)]
-    public abstract class ToolkitController<TEntity, TRepository, TDbContext, TUser, TKey> : ControllerBase
-        where TEntity : ToolkitEntity<TUser, TKey>, new()
-        where TRepository : ToolkitRepository<TEntity, TDbContext, TUser, TKey>
+    public abstract class ToolkitController<TEntity, TRepository, TDbContext, TUser>
+        : ToolkitController<TEntity, TRepository, TDbContext, TUser, ExtraQueries, SieveProcessor, SieveModel, FilterTerm, SortTerm>
+        where TEntity : ToolkitEntity<TUser>, new()
+        where TRepository : ToolkitRepository<TEntity, TDbContext, TUser, ExtraQueries>
         where TDbContext : DbContext
-        where TUser : IdentityUser<TKey>
-        where TKey : IEquatable<TKey>
+        where TUser : IdentityUser<int>
+    {
+        public ToolkitController(TDbContext dbContext, SieveProcessor sieveProcessor, TRepository entityRepo, ILogger<ToolkitController<TEntity, TRepository, TDbContext, TUser, ExtraQueries, SieveProcessor, SieveModel, FilterTerm, SortTerm>> logger, bool saveChangesOnRead = false, bool allowSieveOnRead = true) : base(dbContext, sieveProcessor, entityRepo, logger, saveChangesOnRead, allowSieveOnRead)
+        {
+        }
+    }
+
+    [ApiController]
+    [ProducesResponseType(StatusCodes.Status200OK), ProducesResponseType(StatusCodes.Status400BadRequest), ProducesResponseType(StatusCodes.Status405MethodNotAllowed), ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public abstract class ToolkitController<TEntity, TRepository, TDbContext, TUser, TExtraQueries, TSieveProcessor, TSieveModel, TFilterTerm, TSortTerm> : ControllerBase
+        where TEntity : ToolkitEntity<TUser>, new()
+        where TRepository : ToolkitRepository<TEntity, TDbContext, TUser, TExtraQueries>
+        where TDbContext : DbContext
+        where TUser : IdentityUser<int>
+        where TExtraQueries : class
+        where TSieveProcessor : class, ISieveProcessor<TSieveModel, TFilterTerm, TSortTerm>
+        where TSieveModel : class, ISieveModel<TFilterTerm, TSortTerm>
+        where TFilterTerm : IFilterTerm, new()
+        where TSortTerm : ISortTerm, new()
     {
         protected TDbContext _dbContext;
-        protected SieveProcessor _sieveProcessor;
+        protected TSieveProcessor _sieveProcessor;
         protected TRepository _entityRepo;
         private readonly ILogger _logger;
 
@@ -32,11 +52,11 @@ namespace RestToolkit.Services
 
         public ToolkitController(
             TDbContext dbContext,
-            SieveProcessor sieveProcessor,
+            TSieveProcessor sieveProcessor,
             TRepository entityRepo,
-            ILogger<ToolkitController<TEntity, TRepository, TDbContext, TUser, TKey>> logger,
+            ILogger<ToolkitController<TEntity, TRepository, TDbContext, TUser, TExtraQueries, TSieveProcessor, TSieveModel, TFilterTerm, TSortTerm>> logger,
             bool saveChangesOnRead = false,
-            bool allowSieveOnRead = false)
+            bool allowSieveOnRead = true)
         {
             _dbContext = dbContext;
             _sieveProcessor = sieveProcessor;
@@ -49,16 +69,16 @@ namespace RestToolkit.Services
 
         #region POST
 
+        [Authorize]
         [HttpPost]
-        [ProducesResponseType(200), ProducesResponseType(400), ProducesResponseType(410)]
+        [ProducesResponseType(StatusCodes.Status410Gone)]
         public virtual async Task<IActionResult> Create([FromBody]TEntity entity)
         {
-            entity.Created = DateTimeOffset.UtcNow;
-            entity.UserId = (TKey)Convert.ChangeType(User.GetUserId(), typeof(TKey));
-            entity.InitCreate();
+            entity.Create(User.GetUserId());
             entity.Normalise();
 
-            if (await _entityRepo.OnCreateAsync(entity))
+            var repoResp = await _entityRepo.OnCreateAsync(entity);
+            if (repoResp.Success)
             {
                 try
                 {
@@ -71,7 +91,7 @@ namespace RestToolkit.Services
                 }
                 catch (DbUpdateConcurrencyException)
                 {
-                    return StatusCode(410);
+                    return StatusCode(StatusCodes.Status410Gone);
                 }
                 catch (DbUpdateException)
                 {
@@ -82,7 +102,7 @@ namespace RestToolkit.Services
             }
             else
             {
-                return Forbid();
+                return StatusCode(StatusCodes.Status405MethodNotAllowed, repoResp.ErrorMessage);
             }
         }
 
@@ -91,22 +111,21 @@ namespace RestToolkit.Services
         #region GET
 
         [HttpGet("{id}")]
-        [ProducesResponseType(200)]
         public virtual async Task<IActionResult> Read(int id)
         {
             return await Read(id, null);
         }
 
         [HttpGet]
-        [ProducesResponseType(200)]
-        public virtual async Task<IActionResult> Read([FromQuery]SieveModel sieveModel)
+        public virtual async Task<IActionResult> Read([FromQuery]TSieveModel sieveModel)
         {
             return await Read(null, sieveModel);
         }
 
-        private async Task<IActionResult> Read(int? id, [FromQuery]SieveModel sieveModel)
+        protected virtual async Task<IActionResult> Read(int? id, [FromBody]TSieveModel sieveModel, TExtraQueries extraQueries = null)
         {
             var source = _dbContext.Set<TEntity>().AsNoTracking();
+            var applySieve = id == null && _allowSieveOnRead && sieveModel != null;
 
             //source = source.Where(e => !e.IsDeleted);
 
@@ -114,52 +133,79 @@ namespace RestToolkit.Services
             {
                 source = source.Where(e => e.Id == id);
             }
-            else if (_allowSieveOnRead && sieveModel != null)
-            {
-                source = _sieveProcessor.Apply(sieveModel, source);
-            }
 
-            var result = await _entityRepo.OnReadAsync(source, id);
-
-            if (result is null)
-            {
-                return Forbid();
-            }
-            else if (result is IQueryable<object> entities)
-            {
-                result = id == null ? new { data = await entities.ToListAsync() }
-                                    : await entities.FirstOrDefaultAsync();
-            }
-
-            if (_saveChangesOnRead)
+            if (applySieve)
             {
                 try
                 {
-                    await _dbContext.SaveChangesAsync();
+                    source = _sieveProcessor.Apply(sieveModel, source, 
+                        applyPagination: false);
                 }
-                catch (DbUpdateException)
+                catch (SieveException)
                 {
-                    throw; // server error
+                    return BadRequest("Filter/sort error.");
                 }
             }
 
-            return Ok(result);
+            var (repoResp, repoResult) = await _entityRepo.OnReadAsync(source, id, extraQueries);
+
+            if (!repoResp.Success || repoResult is null)
+            {
+                return StatusCode(StatusCodes.Status405MethodNotAllowed, repoResp.ErrorMessage);
+            }
+            else
+            {
+                if (applySieve)
+                {
+                    try
+                    {
+                        source = _sieveProcessor.Apply(sieveModel, source, 
+                            applyFiltering: false, applySorting: false);
+                    }
+                    catch (SieveException)
+                    {
+                        return BadRequest("Pagination error.");
+                    }
+                }
+
+                var result = id == null ? new { data = await repoResult.ToListAsync() }
+                                        : await repoResult.FirstOrDefaultAsync();
+
+                if (_saveChangesOnRead)
+                {
+                    try
+                    {
+                        await _dbContext.SaveChangesAsync();
+                    }
+                    catch (DbUpdateException)
+                    {
+                        throw; // server error
+                    }
+                }
+
+                return Ok(result);
+            }
+
         }
 
         #endregion
 
         #region PUT
 
+        [Authorize]
         [HttpPut("{id}")]
-        [ProducesResponseType(204), ProducesResponseType(400), ProducesResponseType(410)]
+        [ProducesResponseType(StatusCodes.Status410Gone)]
         public virtual async Task<IActionResult> Update(int id, [FromBody]TEntity entity)
         {
-            entity.Normalise();
             entity.Id = id;
+            entity.Update(User.GetUserId());
+            entity.Normalise();
 
-            if (! await _entityRepo.OnUpdateAsync(entity))
+            var repoResp = await _entityRepo.OnUpdateAsync(id, entity);
+
+            if (!repoResp.Success)
             {
-                return Forbid();
+                return StatusCode(StatusCodes.Status405MethodNotAllowed, repoResp.ErrorMessage);
             }
 
             try
@@ -173,29 +219,32 @@ namespace RestToolkit.Services
             }
             catch (DbUpdateConcurrencyException)
             {
-                return StatusCode(410);
+                return StatusCode(StatusCodes.Status410Gone);
             }
             catch (DbUpdateException)
             {
                 throw; // server error
             }
 
-            return NoContent();
+            return Ok(entity);
         }
 
         #endregion
 
         #region DELETE
 
+        [Authorize]
         [HttpDelete("{id}")]
-        [ProducesResponseType(204), ProducesResponseType(400), ProducesResponseType(410)]
+        [ProducesResponseType(StatusCodes.Status410Gone)]
         public virtual async Task<IActionResult> Delete(int id)
         {
             var entity = new TEntity() { Id = id };
 
-            if (! await _entityRepo.OnDeleteAsync(id))
+            var repoResp = await _entityRepo.OnDeleteAsync(id);
+
+            if (!repoResp.Success)
             {
-                return Forbid();
+                return StatusCode(StatusCodes.Status405MethodNotAllowed, repoResp.ErrorMessage);
             }
 
             try
@@ -209,14 +258,14 @@ namespace RestToolkit.Services
             }
             catch (DbUpdateConcurrencyException)
             {
-                return StatusCode(410);
+                return StatusCode(StatusCodes.Status410Gone);
             }
             catch (DbUpdateException)
             {
                 throw; // server error
             }
 
-            return NoContent();
+            return Ok();
         }
 
         #endregion

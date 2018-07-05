@@ -6,7 +6,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.All" Version="2.1.1" />
-    <PackageReference Include="Sieve" Version="2.1.3" />
+    <PackageReference Include="Sieve" Version="2.1.4" />
   </ItemGroup>
 
 </Project>
