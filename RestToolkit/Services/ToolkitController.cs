@@ -24,7 +24,7 @@ namespace RestToolkit.Services
         where TDbContext : DbContext
         where TUser : IdentityUser<int>
     {
-        public ToolkitController(TDbContext dbContext, SieveProcessor sieveProcessor, TRepository entityRepo, ILogger<ToolkitController<TEntity, TRepository, TDbContext, TUser, ExtraQueries, SieveProcessor, SieveModel, FilterTerm, SortTerm>> logger, bool saveChangesOnRead = false, bool allowSieveOnRead = true) : base(dbContext, sieveProcessor, entityRepo, logger, saveChangesOnRead, allowSieveOnRead)
+        public ToolkitController(TDbContext dbContext, SieveProcessor sieveProcessor, TRepository entityRepo, ILogger<ToolkitController<TEntity, TRepository, TDbContext, TUser, ExtraQueries, SieveProcessor, SieveModel, FilterTerm, SortTerm>> logger, bool saveChangesOnRead = false, bool allowSieveOnRead = true, bool useDeletionFlags = false) : base(dbContext, sieveProcessor, entityRepo, logger, saveChangesOnRead, allowSieveOnRead, useDeletionFlags)
         {
         }
     }
@@ -49,6 +49,7 @@ namespace RestToolkit.Services
 
         protected bool _saveChangesOnRead;
         protected bool _allowSieveOnRead;
+        protected bool _useDeletionFlags;
 
         public ToolkitController(
             TDbContext dbContext,
@@ -56,7 +57,8 @@ namespace RestToolkit.Services
             TRepository entityRepo,
             ILogger<ToolkitController<TEntity, TRepository, TDbContext, TUser, TExtraQueries, TSieveProcessor, TSieveModel, TFilterTerm, TSortTerm>> logger,
             bool saveChangesOnRead = false,
-            bool allowSieveOnRead = true)
+            bool allowSieveOnRead = true,
+            bool useDeletionFlags = false)
         {
             _dbContext = dbContext;
             _sieveProcessor = sieveProcessor;
@@ -65,6 +67,7 @@ namespace RestToolkit.Services
 
             _saveChangesOnRead = saveChangesOnRead;
             _allowSieveOnRead = allowSieveOnRead;
+            _useDeletionFlags = useDeletionFlags;
         }
 
         #region POST
@@ -125,17 +128,16 @@ namespace RestToolkit.Services
         protected virtual async Task<IActionResult> Read(int? id, [FromBody]TSieveModel sieveModel, TExtraQueries extraQueries = null)
         {
             var source = _dbContext.Set<TEntity>().AsNoTracking();
+
             var applySieve = id == null && _allowSieveOnRead && sieveModel != null;
 
-            //source = source.Where(e => !e.IsDeleted);
+            if (_useDeletionFlags)
+                source = source.Where(e => !e.IsDeleted);
 
             if (id != null)
-            {
                 source = source.Where(e => e.Id == id);
-            }
 
             if (applySieve)
-            {
                 try
                 {
                     source = _sieveProcessor.Apply(sieveModel, source, 
@@ -145,7 +147,6 @@ namespace RestToolkit.Services
                 {
                     return BadRequest("Filter/sort error.");
                 }
-            }
 
             var (repoResp, repoResult) = await _entityRepo.OnReadAsync(source, id, extraQueries);
 
@@ -156,7 +157,6 @@ namespace RestToolkit.Services
             else
             {
                 if (applySieve)
-                {
                     try
                     {
                         source = _sieveProcessor.Apply(sieveModel, source, 
@@ -166,13 +166,11 @@ namespace RestToolkit.Services
                     {
                         return BadRequest("Pagination error.");
                     }
-                }
 
                 var result = id == null ? new { data = await repoResult.ToListAsync() }
                                         : await repoResult.FirstOrDefaultAsync();
 
                 if (_saveChangesOnRead)
-                {
                     try
                     {
                         await _dbContext.SaveChangesAsync();
@@ -181,7 +179,6 @@ namespace RestToolkit.Services
                     {
                         throw; // server error
                     }
-                }
 
                 return Ok(result);
             }
@@ -197,6 +194,14 @@ namespace RestToolkit.Services
         [ProducesResponseType(StatusCodes.Status410Gone)]
         public virtual async Task<IActionResult> Update(int id, [FromBody]TEntity entity)
         {
+            // Note this implementation only does one db call (if not using deletion flags)
+            // This means that the model bound (`entity`) will overrride the one in the db
+            // So unbound strings will become null, unbound bools false, etc.
+            // This means the client has to send all properties not just modified ones
+            // A different approach would be to use Microsoft.AspNetCore.JsonPatch
+            // Where the entity is read from the db, the patch supplied form the client
+            //  is applied to it, then the entity saved (2 db calls)
+
             entity.Id = id;
             entity.Update(User.GetUserId());
             entity.Normalise();
@@ -204,12 +209,16 @@ namespace RestToolkit.Services
             var repoResp = await _entityRepo.OnUpdateAsync(id, entity);
 
             if (!repoResp.Success)
-            {
                 return StatusCode(StatusCodes.Status405MethodNotAllowed, repoResp.ErrorMessage);
-            }
 
             try
             {
+                if (_useDeletionFlags
+                    && await _dbContext.Set<TEntity>()
+                                    .AnyAsync(e => e.Id == id
+                                                && e.IsDeleted))
+                    return StatusCode(StatusCodes.Status410Gone);
+
                 _dbContext.Update(entity);
                 await _dbContext.SaveChangesAsync();
             }
@@ -243,13 +252,25 @@ namespace RestToolkit.Services
             var repoResp = await _entityRepo.OnDeleteAsync(id);
 
             if (!repoResp.Success)
-            {
                 return StatusCode(StatusCodes.Status405MethodNotAllowed, repoResp.ErrorMessage);
-            }
 
             try
             {
-                _dbContext.Remove(entity);
+                if (_useDeletionFlags)
+                {
+                    var set = _dbContext.Set<TEntity>();
+                    
+                    if (await set.AnyAsync(e => e.Id == id && e.IsDeleted))
+                        return StatusCode(StatusCodes.Status410Gone);
+
+                    entity.IsDeleted = true;
+                    _dbContext.Set<TEntity>().Attach(entity).Property(x => x.IsDeleted).IsModified = true;
+                }
+                else
+                {
+                    _dbContext.Remove(entity);
+                }
+
                 await _dbContext.SaveChangesAsync();
             }
             catch (Exception ex) when (ex is ArgumentNullException || ex is DbException)

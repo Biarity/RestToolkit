@@ -128,10 +128,10 @@ namespace RestToolkit.Services
             return query.Length < 1 ? null : query;
         }
        
-        protected bool DoesCurrentUserOwnAnyOf(int Id)
+        protected async Task<bool> DoesCurrentUserOwnAnyOfAsync(int Id)
         {
-            return _dbContext.Set<TEntity>().AsNoTracking()
-                    .Any(e => e.Id == Id && e.UserId == CurrentUserId);
+            return await _dbContext.Set<TEntity>().AsNoTracking()
+                    .AnyAsync(e => e.Id == Id && e.UserId == CurrentUserId);
         }
         
         protected void FilterToUserOwned(ref IQueryable<TEntity> entities)

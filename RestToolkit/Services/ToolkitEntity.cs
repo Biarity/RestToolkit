@@ -23,11 +23,8 @@ namespace RestToolkit.Services
         [DataMember, Sieve(CanFilter = true)]
         public virtual int UserId { get; set; }
         public virtual TUser User { get; set; }
-
-        // TODO: IsDeleted flag, would have implications on
-        //       ToolkitController logic to ignore entity
-        //[BindNever, JsonIgnore]
-        //public bool IsDeleted { get; set; }
+        
+        public virtual bool IsDeleted { get; set; }
 
         public virtual void Normalise() { }
 
@@ -37,6 +34,7 @@ namespace RestToolkit.Services
             Created = DateTimeOffset.UtcNow;
             LastUpdated = DateTimeOffset.UtcNow;
             UserId = userId;
+            IsDeleted = false;
         }
         
         public virtual void Update(int userId = 0)
