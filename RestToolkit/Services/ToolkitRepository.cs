@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.Extensions.Logging;
 using RestToolkit.Infrastructure;
 using RestToolkit.Models;
@@ -55,9 +56,9 @@ namespace RestToolkit.Services
             return OnRead(entities, id, extraQueries);
         }
 
-        public virtual async Task<RepositoryResponse> OnUpdateAsync(int entityId, TEntity entity)
+        public virtual async Task<RepositoryResponse> OnUpdateAsync(int entityId, EntityEntry<TEntity> entityEntry)
         {
-            return OnUpdate(entityId, entity);
+            return OnUpdate(entityId, entityEntry);
         }
 
         public virtual async Task<RepositoryResponse> OnDeleteAsync(int entityId)
@@ -86,7 +87,7 @@ namespace RestToolkit.Services
             }, entities);
         }
 
-        private RepositoryResponse OnUpdate(int entityId, TEntity entity)
+        private RepositoryResponse OnUpdate(int entityId, EntityEntry<TEntity> entityEntry)
         {
             return new RepositoryResponse
             {
@@ -138,7 +139,25 @@ namespace RestToolkit.Services
         {
             entities = entities.Where(e => e.UserId == CurrentUserId);
         }
-        
+
+        protected void MarkPropertiesModified(EntityEntry<TEntity> entityEntry, params string[] propertyNames)
+        {
+            foreach (var propertyName in propertyNames)
+                entityEntry.Property(propertyName).IsModified = true;
+        }
+
+        protected void MarkAllPropertiesModified(EntityEntry<TEntity> entityEntry)
+        {
+            foreach (var property in entityEntry.Properties)
+                property.IsModified = true;
+        }
+
+        protected void MarkPropertiesNotModified(EntityEntry<TEntity> entityEntry, params string[] propertyNames)
+        {
+            foreach (var propertyName in propertyNames)
+                entityEntry.Property(propertyName).IsModified = false;
+        }
+
         #endregion HELPERS
     }
 

@@ -24,13 +24,13 @@ namespace RestToolkit.Services
         where TDbContext : DbContext
         where TUser : IdentityUser<int>
     {
-        public ToolkitController(TDbContext dbContext, SieveProcessor sieveProcessor, TRepository entityRepo, ILogger<ToolkitController<TEntity, TRepository, TDbContext, TUser, ExtraQueries, SieveProcessor, SieveModel, FilterTerm, SortTerm>> logger, bool saveChangesOnRead = false, bool allowSieveOnRead = true, bool useDeletionFlags = false) : base(dbContext, sieveProcessor, entityRepo, logger, saveChangesOnRead, allowSieveOnRead, useDeletionFlags)
+        public ToolkitController(TDbContext dbContext, SieveProcessor sieveProcessor, TRepository entityRepo, ILogger<ToolkitController<TEntity, TRepository, TDbContext, TUser, ExtraQueries, SieveProcessor, SieveModel, FilterTerm, SortTerm>> logger, bool allowSieveOnRead = true, bool useDeletionFlags = false, bool filterDeletedWhenUsingDeletionFlags = true) : base(dbContext, sieveProcessor, entityRepo, logger, allowSieveOnRead, useDeletionFlags, filterDeletedWhenUsingDeletionFlags)
         {
         }
     }
 
     [ApiController]
-    [ProducesResponseType(StatusCodes.Status200OK), ProducesResponseType(StatusCodes.Status400BadRequest), ProducesResponseType(StatusCodes.Status405MethodNotAllowed), ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest), ProducesResponseType(StatusCodes.Status405MethodNotAllowed), ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public abstract class ToolkitController<TEntity, TRepository, TDbContext, TUser, TExtraQueries, TSieveProcessor, TSieveModel, TFilterTerm, TSortTerm> : ControllerBase
         where TEntity : ToolkitEntity<TUser>, new()
         where TRepository : ToolkitRepository<TEntity, TDbContext, TUser, TExtraQueries>
@@ -46,46 +46,47 @@ namespace RestToolkit.Services
         protected TSieveProcessor _sieveProcessor;
         protected TRepository _entityRepo;
         private readonly ILogger _logger;
-
-        protected bool _saveChangesOnRead;
+        
         protected bool _allowSieveOnRead;
         protected bool _useDeletionFlags;
+        protected bool _filterDeletedWhenUsingDeletionFlags;
 
         public ToolkitController(
             TDbContext dbContext,
             TSieveProcessor sieveProcessor,
             TRepository entityRepo,
             ILogger<ToolkitController<TEntity, TRepository, TDbContext, TUser, TExtraQueries, TSieveProcessor, TSieveModel, TFilterTerm, TSortTerm>> logger,
-            bool saveChangesOnRead = false,
             bool allowSieveOnRead = true,
-            bool useDeletionFlags = false)
+            bool useDeletionFlags = false,
+            bool filterDeletedWhenUsingDeletionFlags = true)
         {
             _dbContext = dbContext;
             _sieveProcessor = sieveProcessor;
             _entityRepo = entityRepo;
             _logger = logger;
-
-            _saveChangesOnRead = saveChangesOnRead;
+            
             _allowSieveOnRead = allowSieveOnRead;
             _useDeletionFlags = useDeletionFlags;
+            _filterDeletedWhenUsingDeletionFlags = filterDeletedWhenUsingDeletionFlags;
         }
 
         #region POST
 
         [Authorize]
         [HttpPost]
-        [ProducesResponseType(StatusCodes.Status410Gone)]
+        [ProducesResponseType(StatusCodes.Status200OK), ProducesResponseType(StatusCodes.Status410Gone)]
         public virtual async Task<IActionResult> Create([FromBody]TEntity entity)
         {
             entity.Create(User.GetUserId());
             entity.Normalise();
+
+            _dbContext.Add(entity);
 
             var repoResp = await _entityRepo.OnCreateAsync(entity);
             if (repoResp.Success)
             {
                 try
                 {
-                    _dbContext.Add(entity);
                     await _dbContext.SaveChangesAsync();
                 }
                 catch (Exception ex) when (ex is ArgumentNullException || ex is DbException)
@@ -98,7 +99,7 @@ namespace RestToolkit.Services
                 }
                 catch (DbUpdateException)
                 {
-                    throw; // server error
+                    throw; // 500
                 }
                 
                 return Ok(entity);
@@ -114,24 +115,30 @@ namespace RestToolkit.Services
         #region GET
 
         [HttpGet("{id}")]
+        [ResponseCache(Duration = 30)]
+        [ProducesResponseType(StatusCodes.Status200OK)]
         public virtual async Task<IActionResult> Read(int id)
         {
             return await Read(id, null);
         }
 
         [HttpGet]
+        [ResponseCache(Duration = 30)]
+        [ProducesResponseType(StatusCodes.Status200OK)]
         public virtual async Task<IActionResult> Read([FromQuery]TSieveModel sieveModel)
         {
             return await Read(null, sieveModel);
         }
 
-        protected virtual async Task<IActionResult> Read(int? id, [FromBody]TSieveModel sieveModel, TExtraQueries extraQueries = null)
+        protected virtual async Task<IActionResult> Read(int? id, TSieveModel sieveModel, TExtraQueries extraQueries = null)
         {
             var source = _dbContext.Set<TEntity>().AsNoTracking();
 
-            var applySieve = id == null && _allowSieveOnRead && sieveModel != null;
+            var applySieve = (id == null) 
+                && _allowSieveOnRead 
+                && (sieveModel != null);
 
-            if (_useDeletionFlags)
+            if (_useDeletionFlags && _filterDeletedWhenUsingDeletionFlags)
                 source = source.Where(e => !e.IsDeleted);
 
             if (id != null)
@@ -150,7 +157,7 @@ namespace RestToolkit.Services
 
             var (repoResp, repoResult) = await _entityRepo.OnReadAsync(source, id, extraQueries);
 
-            if (!repoResp.Success || repoResult is null)
+            if (!repoResp.Success || repoResult == null)
             {
                 return StatusCode(StatusCodes.Status405MethodNotAllowed, repoResp.ErrorMessage);
             }
@@ -159,7 +166,7 @@ namespace RestToolkit.Services
                 if (applySieve)
                     try
                     {
-                        source = _sieveProcessor.Apply(sieveModel, source, 
+                        repoResult = _sieveProcessor.Apply(sieveModel, repoResult, 
                             applyFiltering: false, applySorting: false);
                     }
                     catch (SieveException)
@@ -169,16 +176,6 @@ namespace RestToolkit.Services
 
                 var result = id == null ? new { data = await repoResult.ToListAsync() }
                                         : await repoResult.FirstOrDefaultAsync();
-
-                if (_saveChangesOnRead)
-                    try
-                    {
-                        await _dbContext.SaveChangesAsync();
-                    }
-                    catch (DbUpdateException)
-                    {
-                        throw; // server error
-                    }
 
                 return Ok(result);
             }
@@ -191,7 +188,7 @@ namespace RestToolkit.Services
 
         [Authorize]
         [HttpPut("{id}")]
-        [ProducesResponseType(StatusCodes.Status410Gone)]
+        [ProducesResponseType(StatusCodes.Status204NoContent), ProducesResponseType(StatusCodes.Status410Gone)]
         public virtual async Task<IActionResult> Update(int id, [FromBody]TEntity entity)
         {
             // Note this implementation only does one db call (if not using deletion flags)
@@ -206,7 +203,11 @@ namespace RestToolkit.Services
             entity.Update(User.GetUserId());
             entity.Normalise();
 
-            var repoResp = await _entityRepo.OnUpdateAsync(id, entity);
+            _dbContext.Attach(entity);
+            var entry = _dbContext.Entry(entity);
+            entry.Property(nameof(ToolkitEntity<TUser>.LastUpdated)).IsModified = true;
+
+            var repoResp = await _entityRepo.OnUpdateAsync(id, entry);
 
             if (!repoResp.Success)
                 return StatusCode(StatusCodes.Status405MethodNotAllowed, repoResp.ErrorMessage);
@@ -219,7 +220,7 @@ namespace RestToolkit.Services
                                                 && e.IsDeleted))
                     return StatusCode(StatusCodes.Status410Gone);
 
-                _dbContext.Update(entity);
+                //_dbContext.Update(entity);
                 await _dbContext.SaveChangesAsync();
             }
             catch (Exception ex) when (ex is ArgumentNullException || ex is DbException)
@@ -232,10 +233,10 @@ namespace RestToolkit.Services
             }
             catch (DbUpdateException)
             {
-                throw; // server error
+                throw; // 500
             }
 
-            return Ok(entity);
+            return NoContent();
         }
 
         #endregion
@@ -244,7 +245,7 @@ namespace RestToolkit.Services
 
         [Authorize]
         [HttpDelete("{id}")]
-        [ProducesResponseType(StatusCodes.Status410Gone)]
+        [ProducesResponseType(StatusCodes.Status204NoContent), ProducesResponseType(StatusCodes.Status410Gone)]
         public virtual async Task<IActionResult> Delete(int id)
         {
             var entity = new TEntity() { Id = id };
@@ -283,10 +284,10 @@ namespace RestToolkit.Services
             }
             catch (DbUpdateException)
             {
-                throw; // server error
+                throw; // 500
             }
 
-            return Ok();
+            return NoContent();
         }
 
         #endregion
