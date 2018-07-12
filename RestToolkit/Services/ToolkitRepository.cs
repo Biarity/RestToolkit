@@ -46,7 +46,7 @@ namespace RestToolkit.Services
         #region PUBLIC ASYNC CRUD METHODS
         #pragma warning disable CS1998 // Async method lacks 'await' operators and will run synchronously
 
-        public virtual async Task<RepositoryResponse> OnCreateAsync(TEntity entity)
+        public virtual async Task<(RepositoryResponse, object)> OnCreateAsync(TEntity entity)
         {
             return OnCreate(entity);
         }
@@ -71,12 +71,12 @@ namespace RestToolkit.Services
 
         #region PRIVATE NON-ASYNC CRUD METHODS
 
-        private RepositoryResponse OnCreate(TEntity entity)
+        private (RepositoryResponse, object) OnCreate(TEntity entity)
         {
-            return new RepositoryResponse
+            return (new RepositoryResponse
             {
                 Success = IsAllAllowedByDefault
-            };
+            }, entity);
         }
 
         private (RepositoryResponse, IQueryable<object>) OnRead(IQueryable<TEntity> entities, int? id, TExtraQueries extraQueries = null)

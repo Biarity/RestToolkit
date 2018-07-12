@@ -24,7 +24,7 @@ namespace RestToolkit.Services
         where TDbContext : DbContext
         where TUser : IdentityUser<int>
     {
-        public ToolkitController(TDbContext dbContext, SieveProcessor sieveProcessor, TRepository entityRepo, ILogger<ToolkitController<TEntity, TRepository, TDbContext, TUser, ExtraQueries, SieveProcessor, SieveModel, FilterTerm, SortTerm>> logger, bool allowSieveOnRead = true, bool useDeletionFlags = false, bool filterDeletedWhenUsingDeletionFlags = true) : base(dbContext, sieveProcessor, entityRepo, logger, allowSieveOnRead, useDeletionFlags, filterDeletedWhenUsingDeletionFlags)
+        public ToolkitController(TDbContext dbContext, SieveProcessor sieveProcessor, TRepository entityRepo, ILogger<ToolkitController<TEntity, TRepository, TDbContext, TUser, ExtraQueries, SieveProcessor, SieveModel, FilterTerm, SortTerm>> logger) : base(dbContext, sieveProcessor, entityRepo, logger)
         {
         }
     }
@@ -55,19 +55,16 @@ namespace RestToolkit.Services
             TDbContext dbContext,
             TSieveProcessor sieveProcessor,
             TRepository entityRepo,
-            ILogger<ToolkitController<TEntity, TRepository, TDbContext, TUser, TExtraQueries, TSieveProcessor, TSieveModel, TFilterTerm, TSortTerm>> logger,
-            bool allowSieveOnRead = true,
-            bool useDeletionFlags = false,
-            bool filterDeletedWhenUsingDeletionFlags = true)
+            ILogger<ToolkitController<TEntity, TRepository, TDbContext, TUser, TExtraQueries, TSieveProcessor, TSieveModel, TFilterTerm, TSortTerm>> logger)
         {
             _dbContext = dbContext;
             _sieveProcessor = sieveProcessor;
             _entityRepo = entityRepo;
             _logger = logger;
             
-            _allowSieveOnRead = allowSieveOnRead;
-            _useDeletionFlags = useDeletionFlags;
-            _filterDeletedWhenUsingDeletionFlags = filterDeletedWhenUsingDeletionFlags;
+            _allowSieveOnRead = true;
+            _useDeletionFlags = false;
+            _filterDeletedWhenUsingDeletionFlags = true;
         }
 
         #region POST
@@ -82,7 +79,7 @@ namespace RestToolkit.Services
 
             _dbContext.Add(entity);
 
-            var repoResp = await _entityRepo.OnCreateAsync(entity);
+            var (repoResp, repoResult) = await _entityRepo.OnCreateAsync(entity);
             if (repoResp.Success)
             {
                 try
@@ -102,7 +99,7 @@ namespace RestToolkit.Services
                     throw; // 500
                 }
                 
-                return Ok(entity);
+                return Ok(repoResult);
             }
             else
             {
@@ -123,7 +120,7 @@ namespace RestToolkit.Services
         }
 
         [HttpGet]
-        [ResponseCache(Duration = 30)]
+        [ResponseCache(Duration = 30, VaryByQueryKeys = new[] { "*" })]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public virtual async Task<IActionResult> Read([FromQuery]TSieveModel sieveModel)
         {
@@ -202,9 +199,8 @@ namespace RestToolkit.Services
             entity.Id = id;
             entity.Update(User.GetUserId());
             entity.Normalise();
-
-            _dbContext.Attach(entity);
-            var entry = _dbContext.Entry(entity);
+            
+            var entry = _dbContext.Attach(entity);
             entry.Property(nameof(ToolkitEntity<TUser>.LastUpdated)).IsModified = true;
 
             var repoResp = await _entityRepo.OnUpdateAsync(id, entry);
