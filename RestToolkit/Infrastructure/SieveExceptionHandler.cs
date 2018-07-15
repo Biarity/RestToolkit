@@ -2,17 +2,17 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
+using Sieve.Exceptions;
 using System;
 using System.Threading.Tasks;
 
 namespace RestToolkit.Infrastructure
 {
-    // DEPRICATED
-    public class DbUpdateExceptionHandler
+    public class SieveExceptionHandler
     {
         private readonly RequestDelegate _next;
 
-        public DbUpdateExceptionHandler(RequestDelegate next)
+        public SieveExceptionHandler(RequestDelegate next)
         {
             _next = next;
         }
@@ -23,7 +23,7 @@ namespace RestToolkit.Infrastructure
             {
                 await _next(httpContext);
             }
-            catch (DbUpdateException ex)
+            catch (SieveException ex)
             {
                 await HandleExceptionAsync(httpContext, ex);
             }
@@ -35,21 +35,10 @@ namespace RestToolkit.Infrastructure
 
             var code = 400;
 
-            if (exception.InnerException.Message.ToLower().Contains("duplicate"))
+            result = new
             {
-                code = 409;
-                result = new
-                {
-                    Error = "Error updating database. Duplicate value."
-                };
-            }
-            else
-            {
-                result = new
-                {
-                    Error = "Error updating database."
-                };
-            }
+                Error = "Filter/Sort/Paginate error."
+            };
 
             context.Response.ContentType = "application/json";
             context.Response.StatusCode = code;
@@ -57,9 +46,9 @@ namespace RestToolkit.Infrastructure
         }
     }
 
-    public static class HandleDbUpdateExceptionExtensions
+    public static class SieveExceptionHandlerExtensions
     {
-        public static IApplicationBuilder UseDbUpdateExceptionHandler(this IApplicationBuilder builder)
+        public static IApplicationBuilder UseSieveExceptionHandler(this IApplicationBuilder builder)
         {
             return builder.UseMiddleware<DbUpdateExceptionHandler>();
         }

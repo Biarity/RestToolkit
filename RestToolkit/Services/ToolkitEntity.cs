@@ -18,28 +18,27 @@ namespace RestToolkit.Services
         public virtual DateTimeOffset Created { get; set; }
 
         [DataMember, Sieve(CanSort = true)]
-        public virtual DateTimeOffset LastUpdated { get; set; }
+        public virtual DateTimeOffset Updated { get; set; }
 
         [DataMember, Sieve(CanFilter = true)]
         public virtual int UserId { get; set; }
         public virtual TUser User { get; set; }
         
         public virtual bool IsDeleted { get; set; }
-
-        public virtual void Normalise() { }
-
+        
         public virtual void Create(int userId = 0)
         {
             Id = 0;
             Created = DateTimeOffset.UtcNow;
-            LastUpdated = DateTimeOffset.UtcNow;
+            Updated = DateTimeOffset.UtcNow;
             UserId = userId;
             IsDeleted = false;
         }
         
-        public virtual void Update(int userId = 0)
+        public virtual void Update(int id, int userId = 0)
         {
-            LastUpdated = DateTimeOffset.UtcNow;
+            Id = id;
+            Updated = DateTimeOffset.UtcNow;
             UserId = userId;
         }
     }
