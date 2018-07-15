@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using RestToolkit.Infrastructure;
 using Sieve.Models;
@@ -21,7 +22,7 @@ namespace RestToolkit.Services
         where TDbContext : DbContext
         where TUser : IdentityUser<int>
     {
-        public ToolkitController(TDbContext dbContext, SieveProcessor sieveProcessor, ILogger<ToolkitController<TEntity, TDbContext, TUser, SieveProcessor, SieveModel, FilterTerm, SortTerm>> logger) : base(dbContext, sieveProcessor, logger)
+        public ToolkitController(TDbContext dbContext, SieveProcessor sieveProcessor, IConfiguration config, ILogger<ToolkitController<TEntity, TDbContext, TUser, SieveProcessor, SieveModel, FilterTerm, SortTerm>> logger) : base(dbContext, sieveProcessor, config, logger)
         {
         }
     }
@@ -41,15 +42,18 @@ namespace RestToolkit.Services
     {
         protected TDbContext _dbContext;
         protected TSieveProcessor _sieveProcessor;
+        protected IConfiguration _config;
         private readonly ILogger _logger;
 
         public ToolkitController(
             TDbContext dbContext,
             TSieveProcessor sieveProcessor,
+            IConfiguration config, 
             ILogger<ToolkitController<TEntity, TDbContext, TUser, TSieveProcessor, TSieveModel, TFilterTerm, TSortTerm>> logger)
         {
             _dbContext = dbContext;
             _sieveProcessor = sieveProcessor;
+            _config = config;
             _logger = logger;
         }
 
