@@ -50,7 +50,7 @@ namespace RestToolkit.Infrastructure
     {
         public static IApplicationBuilder UseSieveExceptionHandler(this IApplicationBuilder builder)
         {
-            return builder.UseMiddleware<DbUpdateExceptionHandler>();
+            return builder.UseMiddleware<SieveExceptionHandler>();
         }
     }
 
