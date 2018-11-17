@@ -9,7 +9,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using RestToolkit.BaseServices;
+using RestToolkit.Base;
 using RestToolkit.Infrastructure;
 using RestToolkit.Services;
 using Sieve.Models;
@@ -23,7 +23,7 @@ namespace Choice
     public class ToolkitStartup<TSieveCustomSortMethods, TSieveCustomFilterMethods, TDbContext, TUser>
         where TSieveCustomFilterMethods : class, ISieveCustomFilterMethods
         where TSieveCustomSortMethods : class, ISieveCustomSortMethods
-        where TDbContext : DbContext
+        where TDbContext : ToolkitDbContext
         where TUser : ToolkitUser
     {
         protected const string ClientRootPath = "ClientApp/dist";
@@ -41,7 +41,7 @@ namespace Choice
         protected const string SwaggerEndpointName = "Toolkit V1";
         protected const string SpaSourcePath = "ClientApp";
 
-        public Startup(IConfiguration configuration, IHostingEnvironment env)
+        public ToolkitStartup(IConfiguration configuration, IHostingEnvironment env)
         {
             Config = configuration;
             Env = env;
@@ -220,6 +220,7 @@ namespace Choice
 
             app.UseSieveExceptionHandler();
 
+            // STILL NEED TO DO THIS IN CHILD CLASS
             //app.UseSignalR(routes =>
             //{
             //    routes.MapHub<CommentsHub>("/CommentsHub");

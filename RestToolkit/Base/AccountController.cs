@@ -14,7 +14,7 @@ using System.Runtime.Serialization;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace RestToolkit.BaseServices
+namespace RestToolkit.Base
 {
     #region EXAMPLE IMPLEMENTATION
 

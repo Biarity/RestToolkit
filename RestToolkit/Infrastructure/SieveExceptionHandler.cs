@@ -1,6 +1,5 @@
 ﻿using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
-using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
 using Sieve.Exceptions;
 using System;

@@ -1,5 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -14,7 +13,7 @@ using System.Data.Common;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace RestToolkit.BaseServices
+namespace RestToolkit.Base
 {
     public abstract class ToolkitController<TEntity, TDbContext, TUser>
         : ToolkitController<TEntity, TDbContext, TUser, SieveProcessor, SieveModel, FilterTerm, SortTerm>

@@ -1,11 +1,9 @@
 ﻿using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Mvc.ModelBinding;
-using Newtonsoft.Json;
 using Sieve.Attributes;
 using System;
 using System.Runtime.Serialization;
 
-namespace RestToolkit.BaseServices
+namespace RestToolkit.Base
 {
     [DataContract]
     public abstract class ToolkitEntity<TUser>

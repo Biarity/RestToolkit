@@ -1,7 +1,5 @@
 ﻿using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
-using System;
-using System.Security.Claims;
 using System.Threading.Tasks;
 
 namespace RestToolkit.Infrastructure
