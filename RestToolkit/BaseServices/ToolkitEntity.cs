@@ -5,7 +5,7 @@ using Sieve.Attributes;
 using System;
 using System.Runtime.Serialization;
 
-namespace RestToolkit.Services
+namespace RestToolkit.BaseServices
 {
     [DataContract]
     public abstract class ToolkitEntity<TUser>

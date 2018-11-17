@@ -14,7 +14,7 @@ using System.Data.Common;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace RestToolkit.Services
+namespace RestToolkit.BaseServices
 {
     public abstract class ToolkitController<TEntity, TDbContext, TUser>
         : ToolkitController<TEntity, TDbContext, TUser, SieveProcessor, SieveModel, FilterTerm, SortTerm>
@@ -26,11 +26,7 @@ namespace RestToolkit.Services
         {
         }
     }
-
-    [ApiController]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status405MethodNotAllowed)]
-    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    
     public abstract class ToolkitController<TEntity, TDbContext, TUser, TSieveProcessor, TSieveModel, TFilterTerm, TSortTerm> : ControllerBase
         where TEntity : ToolkitEntity<TUser>, new()
         where TDbContext : DbContext
@@ -57,74 +53,13 @@ namespace RestToolkit.Services
             _logger = logger;
         }
 
+        #region HELEPRS
 
-        [Authorize]
-        [HttpPost]
-        [ProducesResponseType(StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status410Gone)]
-        public virtual async Task<IActionResult> Create([FromBody]TEntity entity)
+        protected virtual void CreateAndAdd(TEntity entity)
         {
             entity.Create(CurrentUserId);
-
             _dbContext.Add(entity);
-
-            return await SaveChangesAndReturn(entity);
         }
-        
-        [HttpGet("{id}")]
-        [ResponseCache(Duration = 30)]
-        [ProducesResponseType(StatusCodes.Status200OK)]
-        public virtual async Task<IActionResult> Read(int id)
-        {
-            var source = GetAsNoTracking();
-
-            source = FilterToId(id, source);
-
-            var result = await source.FirstOrDefaultAsync();
-
-            return Ok(result);
-        }
-
-        [HttpGet]
-        [ResponseCache(Duration = 30, VaryByQueryKeys = new[] { "*" })]
-        [ProducesResponseType(StatusCodes.Status200OK)]
-        public virtual async Task<IActionResult> Read([FromQuery]TSieveModel sieveModel)
-        {
-            var source = GetAsNoTracking();
-            
-            source = ApplyFilterAndSort(sieveModel, source);
-            source = ApplyPagination(sieveModel, source);
-            
-            var result = await source.ToListAsync();
-
-            return Ok(result);
-        }
-
-        [Authorize]
-        [HttpPut("{id}")]
-        [ProducesResponseType(StatusCodes.Status204NoContent)]
-        [ProducesResponseType(StatusCodes.Status410Gone)]
-        public virtual async Task<IActionResult> Update(int id, [FromBody]TEntity entity)
-        {
-            var entry = AttachGetEntry(id, entity);
-
-            // Mark proeprties modified
-
-            return await SaveChangesAndReturn();
-        }
-
-        [Authorize]
-        [HttpDelete("{id}")]
-        [ProducesResponseType(StatusCodes.Status204NoContent)]
-        [ProducesResponseType(StatusCodes.Status410Gone)]
-        public virtual async Task<IActionResult> Delete(int id)
-        {
-            RemoveWithId(id);
-
-            return await SaveChangesAndReturn();
-        }
-
-        #region HELEPRS
 
         protected virtual async Task<IActionResult> SaveChangesAndReturn(object result = null)
         {
