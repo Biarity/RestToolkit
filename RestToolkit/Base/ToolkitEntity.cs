@@ -7,7 +7,7 @@ namespace RestToolkit.Base
 {
     [DataContract]
     public abstract class ToolkitEntity<TUser>
-        where TUser : IdentityUser<int>
+        where TUser : ToolkitUser
     {
         [DataMember]
         public virtual int Id { get; set; }

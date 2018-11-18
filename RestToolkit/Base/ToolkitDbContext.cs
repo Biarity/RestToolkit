@@ -4,7 +4,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace RestToolkit.Base
 {
-    public class ToolkitDbContext : IdentityDbContext<ToolkitUser, IdentityRole<int>, int>
+    public class ToolkitDbContext<TUser> : IdentityDbContext<TUser, IdentityRole<int>, int>
+        where TUser : ToolkitUser
     {
         public ToolkitDbContext(DbContextOptions options) : base(options) { }
     }

@@ -23,7 +23,7 @@ namespace Choice
     public class ToolkitStartup<TSieveCustomSortMethods, TSieveCustomFilterMethods, TDbContext, TUser>
         where TSieveCustomFilterMethods : class, ISieveCustomFilterMethods
         where TSieveCustomSortMethods : class, ISieveCustomSortMethods
-        where TDbContext : ToolkitDbContext
+        where TDbContext : ToolkitDbContext<TUser>
         where TUser : ToolkitUser
     {
         protected const string ClientRootPath = "ClientApp/dist";

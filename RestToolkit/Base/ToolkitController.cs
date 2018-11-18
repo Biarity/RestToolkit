@@ -18,8 +18,8 @@ namespace RestToolkit.Base
     public abstract class ToolkitController<TEntity, TDbContext, TUser>
         : ToolkitController<TEntity, TDbContext, TUser, SieveProcessor, SieveModel, FilterTerm, SortTerm>
         where TEntity : ToolkitEntity<TUser>, new()
-        where TDbContext : DbContext
-        where TUser : IdentityUser<int>
+        where TDbContext : ToolkitDbContext<TUser>
+        where TUser : ToolkitUser
     {
         public ToolkitController(TDbContext dbContext, SieveProcessor sieveProcessor, IConfiguration config, ILogger<ToolkitController<TEntity, TDbContext, TUser, SieveProcessor, SieveModel, FilterTerm, SortTerm>> logger) : base(dbContext, sieveProcessor, config, logger)
         {
@@ -28,8 +28,8 @@ namespace RestToolkit.Base
     
     public abstract class ToolkitController<TEntity, TDbContext, TUser, TSieveProcessor, TSieveModel, TFilterTerm, TSortTerm> : ControllerBase
         where TEntity : ToolkitEntity<TUser>, new()
-        where TDbContext : DbContext
-        where TUser : IdentityUser<int>
+        where TDbContext : ToolkitDbContext<TUser>
+        where TUser : ToolkitUser
         where TSieveProcessor : class, ISieveProcessor<TSieveModel, TFilterTerm, TSortTerm>
         where TSieveModel : class, ISieveModel<TFilterTerm, TSortTerm>
         where TFilterTerm : IFilterTerm, new()

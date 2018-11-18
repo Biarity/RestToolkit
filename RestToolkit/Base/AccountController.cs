@@ -16,45 +16,6 @@ using System.Threading.Tasks;
 
 namespace RestToolkit.Base
 {
-    #region EXAMPLE IMPLEMENTATION
-
-    public class ExampleAccountController : AccountController<IExampleAdditionalUserInfo, ExampleUser, ExampleAdditionalUserInfo>
-    {
-        public ExampleAccountController(IConfiguration config, ILogger<AccountController<IExampleAdditionalUserInfo, ExampleUser, ExampleAdditionalUserInfo>> logger, UserManager<ExampleUser> userManager, SignInManager<ExampleUser> signInManager, IEmailSender emailSender) : base(config, logger, userManager, signInManager, emailSender)
-        {
-        }
-    }
-
-    public interface IExampleAdditionalUserInfo : IAdditionalUserInfo<ExampleUser>
-    {
-        string UserName { get; set; }
-    }
-
-    [DataContract]
-    public class ExampleUser : ToolkitUser, IExampleAdditionalUserInfo
-    {
-        public void Map(ref ExampleUser user)
-        {
-            throw new System.NotImplementedException();
-        }
-    }
-
-    public class ExampleAdditionalUserInfo : IExampleAdditionalUserInfo
-    {
-        [Required]
-        [MinLength(3), MaxLength(10)]
-        [RegularExpression("[A-Za-z0-9]+")]
-        [PersonalData]
-        public string UserName { get; set; }
-
-        public void Map(ref ExampleUser user)
-        {
-            user.UserName = UserName;
-        }
-    }
-
-    #endregion
-
     [Authorize]
     [Route("api/[controller]/[action]")]
     public class AccountController<TIAdditionalUserInfo, TUser, TAdditionalUserInfo> : Controller
