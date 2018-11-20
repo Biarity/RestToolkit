@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 
 namespace RestToolkit.Base
 {
-    public class ToolkitHub : Hub
+    public abstract class ToolkitHub : Hub
     {
         protected readonly IDistributedCache _cache;
         protected readonly ILogger<ToolkitHub> _logger;

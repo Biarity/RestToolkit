@@ -18,9 +18,9 @@ using Swashbuckle.AspNetCore.Swagger;
 using System.IdentityModel.Tokens.Jwt;
 using System.Threading.Tasks;
 
-namespace Choice
+namespace RestToolkit
 {
-    public class ToolkitStartup<TSieveCustomSortMethods, TSieveCustomFilterMethods, TDbContext, TUser>
+    public abstract class ToolkitStartup<TSieveCustomSortMethods, TSieveCustomFilterMethods, TDbContext, TUser>
         where TSieveCustomFilterMethods : class, ISieveCustomFilterMethods
         where TSieveCustomSortMethods : class, ISieveCustomSortMethods
         where TDbContext : ToolkitDbContext<TUser>
@@ -50,7 +50,7 @@ namespace Choice
         public IConfiguration Config { get; }
         public IHostingEnvironment Env { get; }
 
-        public void ConfigureServices(IServiceCollection services)
+        public virtual void ConfigureServices(IServiceCollection services)
         {
             services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_1);
 
@@ -187,7 +187,7 @@ namespace Choice
             }
         }
 
-        public void Configure(IApplicationBuilder app, IHostingEnvironment env)
+        public virtual void Configure(IApplicationBuilder app, IHostingEnvironment env)
         {
             app.UseAuthentication();
             app.AddUserDetailCookie();
@@ -230,7 +230,7 @@ namespace Choice
             {
                 routes.MapRoute(
                     name: "default",
-                    template: "api/{controller}");
+                    template: "api/{controller}/{action=Index}/{id?}");
             });
 
             app.UseSpa(spa =>

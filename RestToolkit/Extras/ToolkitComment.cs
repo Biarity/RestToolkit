@@ -9,11 +9,11 @@ using System.Text;
 namespace RestToolkit.Extras
 {
     [DataContract]
-    public class Comment<TUser, TParent, TSelf, TReaction, TReactionType> : ToolkitEntity<TUser>
+    public abstract class ToolkitComment<TUser, TParent, TSelf, TReaction, TReactionType> : ToolkitEntity<TUser>, IReactionParent
         where TUser : ToolkitUser
         where TParent : ToolkitEntity<TUser>
-        where TSelf : Comment<TUser, TParent, TSelf, TReaction, TReactionType>
-        where TReaction : Reaction<TUser, TSelf, TReactionType>
+        where TSelf : ToolkitComment<TUser, TParent, TSelf, TReaction, TReactionType>
+        where TReaction : ToolkitReaction<TUser, TSelf, TReactionType>
         where TReactionType : Enum
     {
         [DataMember(IsRequired = true)]
@@ -32,14 +32,14 @@ namespace RestToolkit.Extras
         public virtual DateTimeOffset LastActive { get; set; }
 
         [DataMember]
-        public int ReactionCount { get; set; }
+        public int VoteReactionCounter { get; set; }
 
         public List<TReaction> Reactions { get; set; }
 
         public override void Create(int userId = 0)
         {
             base.Create(userId);
-            ReactionCount = 1;
+            VoteReactionCounter = 1;
         }
     }
 }

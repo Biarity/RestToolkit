@@ -9,15 +9,29 @@ using Sieve.Services;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace RestToolkit.Extras
 {
+    public abstract class ToolkitCommentsController<TDbContext, TUser,
+       TComment, TCommentParent, TReaction, TReactionType>
+       : ToolkitController<TComment, TDbContext, TUser, SieveProcessor, SieveModel, FilterTerm, SortTerm>
+       where TDbContext : ToolkitDbContext<TUser>
+       where TUser : ToolkitUser
+       where TCommentParent : ToolkitEntity<TUser>
+       where TReaction : ToolkitReaction<TUser, TComment, TReactionType>, new()
+       where TReactionType : Enum
+       where TComment : ToolkitComment<TUser, TCommentParent, TComment, TReaction, TReactionType>, new()
+    {
+        public ToolkitCommentsController(TDbContext dbContext, SieveProcessor sieveProcessor, IConfiguration config, ILogger<ToolkitController<TComment, TDbContext, TUser, SieveProcessor, SieveModel, FilterTerm, SortTerm>> logger) : base(dbContext, sieveProcessor, config, logger)
+        {
+        }
+    }
+
     [Authorize]
     [ApiController]
     [Route("api/[controller]")]
-    public abstract class CommentsController<TDbContext, TUser, TSieveProcessor, TSieveModel, TFilterTerm, TSortTerm,
+    public abstract class ToolkitCommentsController<TDbContext, TUser, TSieveProcessor, TSieveModel, TFilterTerm, TSortTerm,
         TComment, TCommentParent, TReaction, TReactionType> 
         : ToolkitController<TComment, TDbContext, TUser, TSieveProcessor, TSieveModel, TFilterTerm, TSortTerm>
         where TDbContext : ToolkitDbContext<TUser>
@@ -27,16 +41,16 @@ namespace RestToolkit.Extras
         where TFilterTerm : IFilterTerm, new()
         where TSortTerm : ISortTerm, new()
         where TCommentParent : ToolkitEntity<TUser>
-        where TReaction : Reaction<TUser, TComment, TReactionType>, new()
+        where TReaction : ToolkitReaction<TUser, TComment, TReactionType>, new()
         where TReactionType : Enum
-        where TComment : Comment<TUser, TCommentParent, TComment, TReaction, TReactionType>, new()
+        where TComment : ToolkitComment<TUser, TCommentParent, TComment, TReaction, TReactionType>, new()
     {
         protected const string CommentBodyPropertyName = "Body";
         protected const string CommentLastActivePropertyName = "LastActive";
 
         //private readonly IHubContext<CommentsHub> _commentsHubContext;
 
-        public CommentsController(TDbContext dbContext, TSieveProcessor sieveProcessor, IConfiguration config, ILogger<ToolkitController<TComment, TDbContext, TUser, TSieveProcessor, TSieveModel, TFilterTerm, TSortTerm>> logger) : base(dbContext, sieveProcessor, config, logger)
+        public ToolkitCommentsController(TDbContext dbContext, TSieveProcessor sieveProcessor, IConfiguration config, ILogger<ToolkitController<TComment, TDbContext, TUser, TSieveProcessor, TSieveModel, TFilterTerm, TSortTerm>> logger) : base(dbContext, sieveProcessor, config, logger)
         {
         }
 
@@ -44,7 +58,7 @@ namespace RestToolkit.Extras
         public async Task<IActionResult> Create([FromBody]TComment comment)
         {
             CreateAndAdd(comment);
-            CreateInitialLoveReaction(comment);
+            CreateInitialVoteReaction(comment);
 
             if (!await CreateCommentOnParent(comment))
                 return Unauthorized();
@@ -74,7 +88,7 @@ namespace RestToolkit.Extras
         }
 
         [AllowAnonymous]
-        [HttpGet("Story/{storyId}")]
+        [HttpGet("Parent/{parentId}")]
         [ResponseCache(Duration = 10, VaryByQueryKeys = new[] { "*" })]
         public async Task<IActionResult> Read(int parentId, [FromQuery]TSieveModel sieveModel)
         {
@@ -86,7 +100,7 @@ namespace RestToolkit.Extras
             source = source.Where(c => c.ParentId == parentId
                                     && c.ParentCommentId == null);
 
-            var result = await SelectComment(sieveModel, source)
+            var result = await SelectPaginateComments(sieveModel, source)
                                     .ToListAsync();
 
             return Ok(new { data = result });
@@ -105,7 +119,7 @@ namespace RestToolkit.Extras
 
             source = source.Where(c => c.ParentCommentId == commentId);
 
-            var result = await SelectComment(sieveModel, source, true)
+            var result = await SelectPaginateComments(sieveModel, source, true)
                                     .ToListAsync();
 
             return Ok(new { data = result });
@@ -166,19 +180,20 @@ namespace RestToolkit.Extras
         
         protected abstract IQueryable<TComment> FilterCanAccessComment(IQueryable<TComment> source);
 
-        protected virtual void CreateInitialLoveReaction(TComment comment)
+        /// Comments have an initial reaction of type 0 made by author
+        protected virtual void CreateInitialVoteReaction(TComment comment)
         {
-            var initialLove = new TReaction();
+            var initialVoteReaction = new TReaction();
 
-            initialLove.Create(CurrentUserId);
+            initialVoteReaction.Create(CurrentUserId);
 
             comment.Reactions = new List<TReaction>
             {
-                initialLove
+                initialVoteReaction
             };
         }
 
-        protected virtual IQueryable<object> SelectComment(TSieveModel sieveModel, IQueryable<TComment> source, bool excludeChildComments = false)
+        protected virtual IQueryable<object> SelectPaginateComments(TSieveModel sieveModel, IQueryable<TComment> source, bool excludeChildComments = false)
         {
             var currentUserId = IsUserAuthenticated ? CurrentUserId : -1;
 

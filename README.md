@@ -10,7 +10,7 @@ public class ExampleAccountController
 	//ctor...
 }
 
-public interface IExampleAdditionalUserInfo : IAdditionalUserInfo<ExampleUser>
+public interface IExampleAdditionalUserInfo : IToolkitAdditionalUserInfo<ExampleUser>
 {
     string UserName { get; set; }
 }

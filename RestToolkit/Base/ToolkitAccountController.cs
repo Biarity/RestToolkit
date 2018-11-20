@@ -18,19 +18,18 @@ namespace RestToolkit.Base
 {
     [Authorize]
     [Route("api/[controller]/[action]")]
-    public class AccountController<TIAdditionalUserInfo, TUser, TAdditionalUserInfo> : Controller
-        where TIAdditionalUserInfo : IAdditionalUserInfo<TUser>
+    public abstract class ToolkitAccountController<TIAdditionalUserInfo, TUser, TAdditionalUserInfoViewModel> : Controller
         where TUser : ToolkitUser, TIAdditionalUserInfo, new()
-        where TAdditionalUserInfo : TIAdditionalUserInfo
+        where TAdditionalUserInfoViewModel : TIAdditionalUserInfo
     {
         private readonly IConfiguration _config;
         private readonly UserManager<TUser> _userManager;
         private readonly SignInManager<TUser> _signInManager;
         private readonly IEmailSender _emailSender;
-        private readonly ILogger<AccountController<TIAdditionalUserInfo, TUser, TAdditionalUserInfo>> _logger;
+        private readonly ILogger<ToolkitAccountController<TIAdditionalUserInfo, TUser, TAdditionalUserInfoViewModel>> _logger;
 
-        public AccountController(IConfiguration config,
-            ILogger<AccountController<TIAdditionalUserInfo, TUser, TAdditionalUserInfo>> logger,
+        public ToolkitAccountController(IConfiguration config,
+            ILogger<ToolkitAccountController<TIAdditionalUserInfo, TUser, TAdditionalUserInfoViewModel>> logger,
             UserManager<TUser> userManager,
             SignInManager<TUser> signInManager,
             IEmailSender emailSender)
@@ -90,7 +89,7 @@ namespace RestToolkit.Base
 
         [HttpPost]
         [AllowAnonymous]
-        public async Task<IActionResult> Login([FromBody]LoginModel model, [FromBody]TAdditionalUserInfo additionalUserInfo)
+        public async Task<IActionResult> Login([FromBody]LoginModel model, [FromBody]TAdditionalUserInfoViewModel additionalUserInfo)
         {
             if (User.Identity.IsAuthenticated)
                 return BadRequest("Already authenticated.");
@@ -120,7 +119,7 @@ namespace RestToolkit.Base
                     return BadRequest(ModelState);
 
                 user = new TUser();
-                additionalUserInfo.Map(ref user);
+                Map(additionalUserInfo, ref user);
 
                 user.Email = model.Email;
                 user.EmailConfirmed = true;
@@ -145,6 +144,7 @@ namespace RestToolkit.Base
             });
         }
 
+
         [HttpPost]
         [Authorize]
         public async Task<IActionResult> Logout()
@@ -157,12 +157,12 @@ namespace RestToolkit.Base
         }
 
         [HttpPost]
-        public async Task<IActionResult> Update([FromBody]TAdditionalUserInfo additionalUserInfo)
+        public async Task<IActionResult> Update([FromBody]TAdditionalUserInfoViewModel additionalUserInfo)
         {
             //var user = additionalUserInfo.ToApplicationUser();
             var user = await _userManager.GetUserAsync(User);
 
-            additionalUserInfo.Map(ref user);
+            Map(additionalUserInfo, ref user);
 
             var update = await _userManager.UpdateAsync(user);
 
@@ -218,8 +218,7 @@ namespace RestToolkit.Base
 
             return Ok();
         }
-
-
+        
         private async Task SendTokenAsync(string email, string token)
         {
             token = String.Concat(token.SelectMany((c, i) => (i + 1) % 3 == 0 ? $"{c} " : $"{c}")).Trim();
@@ -231,5 +230,8 @@ namespace RestToolkit.Base
             await _emailSender.SendEmailAsync(email, subject, message);
         }
 
+        /// Maps additionalUserInfo properties to user
+        /// user.UserName = additionalUserInfo.UserName;
+        protected abstract void Map(TAdditionalUserInfoViewModel additionalUserInfo, ref TUser user);
     }
 }
