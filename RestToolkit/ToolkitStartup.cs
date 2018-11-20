@@ -26,20 +26,21 @@ namespace RestToolkit
         where TDbContext : ToolkitDbContext<TUser>
         where TUser : ToolkitUser
     {
-        protected const string ClientRootPath = "ClientApp/dist";
-        protected bool UseLocalDb = false;
-        protected const string LocalDbConnectionConfigKey = "MSSQLLocalDB";
-        protected const string NpgsqlDevConnectionConfigKey = "ElephantSql";
-        protected const string NpgsqlConnectionConfigKey = "Default";
-        protected const string DistributedRedisName = "MyRedis";
-        protected const string DistributedRedisConnectionConfigKey = "MyRedis";
-        protected const string SieveConfigSectionConfigKey = "Sieve";
-        protected const string JwtAudienceConfigKey = "Auth:Audience";
-        protected const string JwtAuthorityConfigKey = "Auth:AuthorityUrl";
-        protected const string AuthEmailTokenProviderName = "Email";
-        protected const string SignalRRedisConnectionConfigKey = "MyRedis";
-        protected const string SwaggerEndpointName = "Toolkit V1";
-        protected const string SpaSourcePath = "ClientApp";
+        protected virtual string ClientRootPath { get => "ClientApp/dist"; }
+        protected abstract bool UseLocalDb { get; }
+        protected virtual string ProxySpaAddress { get => "http://localhost:5001"; }
+        protected virtual string AuthEmailTokenProviderName { get => "Email"; }
+        protected virtual string SwaggerEndpointName { get => "Swagger :)"; }
+        protected virtual string SpaSourcePath { get => "ClientApp"; }
+
+        protected virtual string LocalDbDevConnectionConfigKey { get => "MSSQLLocalDB"; }
+        protected virtual string NpgsqlConnectionConfigKey { get => "Postgres"; }
+        protected virtual string DistributedRedisConnectionConfigKey { get => "Redis"; }
+        protected virtual string SignalRRedisConnectionConfigKey { get => "Redis"; }
+        protected virtual string SieveConfigSectionConfigKey { get => "Sieve"; }
+        protected virtual string JwtAudienceConfigKey { get => "Auth:Audience"; }
+        protected virtual string JwtAuthorityConfigKey { get => "Auth:AuthorityUrl"; }
+        protected virtual string DistributedRedisNameKey { get => "DistributedRedisName"; }
 
         public ToolkitStartup(IConfiguration configuration, IHostingEnvironment env)
         {
@@ -74,9 +75,9 @@ namespace RestToolkit
                 {
                     opts.EnableSensitiveDataLogging(true);
                     if (UseLocalDb)
-                        opts.UseSqlServer(Config.GetConnectionString(LocalDbConnectionConfigKey));
+                        opts.UseSqlServer(Config.GetConnectionString(LocalDbDevConnectionConfigKey));
                     else
-                        opts.UseNpgsql(Config.GetConnectionString(NpgsqlDevConnectionConfigKey));
+                        opts.UseNpgsql(Config.GetConnectionString(NpgsqlConnectionConfigKey));
                 }
                 else
                 {
@@ -95,7 +96,7 @@ namespace RestToolkit
             {
                 services.AddDistributedRedisCache(options =>
                 {
-                    options.InstanceName = DistributedRedisName;
+                    options.InstanceName = Config[DistributedRedisNameKey];
                     options.Configuration = Config.GetConnectionString(DistributedRedisConnectionConfigKey); // StackExchange.Redis format
                 });
             }
@@ -240,7 +241,7 @@ namespace RestToolkit
                 // FOR DEVELOPMENT, RUN `npm run serve` FIRST
                 if (env.IsDevelopment())
                 {
-                    spa.UseProxyToSpaDevelopmentServer("http://localhost:5001");
+                    spa.UseProxyToSpaDevelopmentServer(ProxySpaAddress);
                 }
             });
         }
